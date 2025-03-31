@@ -24,6 +24,7 @@ model User {
   password  String
   role      Role     @default(USER)
   cart      Cart[]
+  wishlist  Wishlist[]
   createdAt DateTime @default(now())
 }
 
@@ -36,6 +37,7 @@ model Product {
   image       String?
   isActive    Boolean  @default(true) // Para "eliminación lógica"
   cartItems   Cart[]
+  wishlist    Wishlist[]
   createdAt   DateTime @default(now())
 }
 
@@ -49,4 +51,15 @@ model Cart {
   createdAt DateTime @default(now())
 
   @@unique([userId, productId]) // para evitar duplicados en el carrito
+}
+
+model Wishlist {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  userId    Int
+  productId Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, productId]) // para evitar duplicados en la wishlist
 }

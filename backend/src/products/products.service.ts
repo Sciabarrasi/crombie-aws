@@ -2,6 +2,8 @@ import {
   Injectable,
   ForbiddenException,
   NotFoundException,
+  UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from 'prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -13,6 +15,9 @@ export class ProductsService {
 
   /// LOGICA PARA EL ROLE ADMIN
   async create(adminId: number, createProductDto: CreateProductDto) {
+    if (!adminId) {
+      throw new UnauthorizedException('Usuario no autenticado');
+    }
     await this.validateAdmin(adminId);
 
     return this.prisma.product.create({
@@ -25,6 +30,9 @@ export class ProductsService {
     id: number,
     updateProductDto: UpdateProductDto,
   ) {
+    if (!adminId) {
+      throw new UnauthorizedException('Usuario no autenticado');
+    }
     await this.validateAdmin(adminId);
 
     return this.prisma.product.update({
@@ -34,6 +42,9 @@ export class ProductsService {
   }
 
   async remove(adminId: number, id: number) {
+    if (!adminId) {
+      throw new UnauthorizedException('Usuario no autenticado');
+    }
     await this.validateAdmin(adminId);
 
     return this.prisma.product.update({
@@ -56,14 +67,34 @@ export class ProductsService {
     });
   }
 
+  async findOne(id: number) {
+    const product = await this.prisma.product.findUnique({
+      where: { id, isActive: true },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Producto no encontrado');
+    }
+
+    return product;
+  }
+
   // VALIDACIONES
   private async validateAdmin(userId: number) {
+    if (!userId) {
+      throw new UnauthorizedException('Usuario no autenticado');
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { role: true },
     });
 
-    if (user?.role !== 'ADMIN') {
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    if (user.role !== 'ADMIN') {
       throw new ForbiddenException('Solo ADMIN puede realizar esta acción');
     }
   }
@@ -79,5 +110,76 @@ export class ProductsService {
     }
 
     return product?.stock > 0;
+  }
+
+  async addToWishlist(userId: number, productId: number) {
+    // Verificar si el producto existe
+    const product = await this.prisma.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (!product) {
+      throw new NotFoundException('Producto no encontrado');
+    }
+
+    // Verificar si el producto ya está en la wishlist
+    const existingWishlistItem = await this.prisma.wishlist.findUnique({
+      where: {
+        userId_productId: {
+          userId: userId,
+          productId: productId,
+        },
+      },
+    });
+
+    if (existingWishlistItem) {
+      throw new BadRequestException('El producto ya está en tu wishlist');
+    }
+
+    // Agregar el producto a la wishlist
+    return this.prisma.wishlist.create({
+      data: {
+        userId: userId,
+        productId: productId,
+      },
+      include: {
+        product: true,
+      },
+    });
+  }
+
+  async removeFromWishlist(userId: number, productId: number) {
+    const wishlistItem = await this.prisma.wishlist.findUnique({
+      where: {
+        userId_productId: {
+          userId: userId,
+          productId: productId,
+        },
+      },
+    });
+
+    if (!wishlistItem) {
+      throw new NotFoundException('El producto no está en tu wishlist');
+    }
+
+    return this.prisma.wishlist.delete({
+      where: {
+        userId_productId: {
+          userId: userId,
+          productId: productId,
+        },
+      },
+    });
+  }
+
+  async getWishlist(userId: number) {
+    return this.prisma.wishlist.findMany({
+      where: {
+        userId: userId,
+      },
+      include: {
+        product: true,
+      },
+    });
   }
 }
