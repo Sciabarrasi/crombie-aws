@@ -1,49 +1,42 @@
 import { Injectable } from '@nestjs/common';
 import { LoginAuthDto } from './dto/login.dto';
 import { RegisterAuthDto } from './dto/register.dto';
+import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { CognitoService } from 'src/cognito/cognito.service';
+import { UserService } from 'src/user/user.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private cognitoService: CognitoService,
+    private userService: UserService,
     private jwtService: JwtService,
   ) {}
 
   async register(registerDto: RegisterAuthDto) {
-    // Usamos el servicio de Cognito para registrar al usuario
-    const result = await this.cognitoService.registerUser(
-      registerDto.email,
-      registerDto.userName,
-      registerDto.password,
-    );
-    
-    return result;
-  }
-
-  // Nuevo método para confirmar email
-  async confirmEmail(email: string, code: string) {
-    return await this.cognitoService.confirmSignUp(email, code);
-  }
-
-  // Nuevo método para reenviar código
-  async resendConfirmationCode(email: string) {
-    return await this.cognitoService.resendConfirmationCode(email);
+    const hashedPassword = await bcrypt.hash(registerDto.password, 10);
+    const user = await this.userService.createUser({
+      email: registerDto.email,
+      password: hashedPassword,
+      userName: registerDto.userName,
+    });
+    return user;
   }
 
   async login(loginDto: LoginAuthDto) {
-    try {
-      // Autenticamos usando Cognito
-      const authResult = await this.cognitoService.loginUser(
-        loginDto.email,
-        loginDto.password,
-      );
-      
-      return authResult;
-    } catch (error) {
-      console.error('Login error:', error);
+    const user = await this.userService.getUserByEmail(loginDto.email);
+    if (!user || !(await bcrypt.compare(loginDto.password, user.password))) {
       throw new Error('Invalid credentials');
     }
+    const payload = {
+      username: user.userName,
+      email: user.email,
+      roles: Array.isArray(user.rol) ? user.rol : [user.rol],
+    };
+    return {
+      access_token: this.jwtService.sign(payload, {
+        secret: process.env.JWT_SECRET || 'supersecret',
+        expiresIn: '10m',
+      }),
+    };
   }
 }
