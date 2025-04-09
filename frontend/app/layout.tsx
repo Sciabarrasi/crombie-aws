@@ -1,35 +1,29 @@
-import { Inter } from "next/font/google"
-import { ThemeProvider } from "@/components/theme-provider"
-import { AuthProvider } from "@/lib/context/AuthContext"
-import "./globals.css"
+// app/layout.tsx
+import './globals.css';
+import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
+import Navbar from '@/components/Navbar';
+import { Toaster } from 'sonner';
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({ subsets: ['latin'] });
 
-export const metadata = {
-  title: "Crombie Store",
-  description: "Tu tienda online favorita",
-}
+export const metadata: Metadata = {
+  title: 'Crombie Store',
+  description: 'Tienda online de moda urbana',
+};
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es">
       <body className={inter.className}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AuthProvider>
-            {children}
-          </AuthProvider>
-        </ThemeProvider>
+        <Navbar />
+        <Toaster richColors position="top-center" />
+        {children}
       </body>
     </html>
-  )
+  );
 }
-
