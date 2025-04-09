@@ -1,46 +1,75 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { PrismaService } from "../prisma/prisma.service";
+import { Roles } from "@prisma/client";
+
+type SafeUser = {
+  id: string;
+  email: string;
+  userName: string;
+  rol: Roles;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type UserWithPassword = SafeUser & { password: string };
 
 @Injectable()
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  async createUser({
-    email,
-    userName,
-    password,
-  }: {
-    email: string;
-    userName: string;
-    password: string;
-  }) {
+  async createUser(data: { email: string; userName: string; password: string }): Promise<SafeUser> {
     return this.prisma.user.create({
-      data: { email, userName, password },
+      data,
+      select: this.getSafeUserSelect(),
     });
   }
 
-  async getUserById(id: string) {
-    return this.prisma.user.findUnique({ where: { id } });
+  async getUserById(id: string): Promise<SafeUser | null> {
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: this.getSafeUserSelect(),
+    });
   }
 
-  async getUserByEmail(email: string) {
+  async getUserByEmail(email: string): Promise<UserWithPassword | null> {
     return this.prisma.user.findUnique({
       where: { email },
+      select: { ...this.getSafeUserSelect(), password: true },
     });
   }
 
-  async getAllUsers() {
-    return this.prisma.user.findMany();
-  }
-
-  async updateUser(id: string, data: { email?: string; name?: string }) {
+  async updateUser(id: string, data: { email?: string; userName?: string }): Promise<SafeUser> {
+    await this.verifyUserExists(id);
     return this.prisma.user.update({
       where: { id },
       data,
+      select: this.getSafeUserSelect(),
     });
   }
 
-  async deleteUser(id: string) {
-    return this.prisma.user.delete({ where: { id } });
+  async deleteUser(id: string): Promise<{ id: string; email: string }> {
+    await this.verifyUserExists(id);
+    return this.prisma.user.delete({
+      where: { id },
+      select: { id: true, email: true },
+    });
+  }
+
+  private verifyUserExists(id: string): Promise<void> {
+    return this.prisma.user.findUnique({ where: { id } })
+      .then(user => {
+        if (!user) throw new NotFoundException(`Usuario con ID ${id} no encontrado`);
+      });
+  }
+
+  private getSafeUserSelect() {
+    return {
+      id: true,
+      email: true,
+      userName: true,
+      rol: true,
+      createdAt: true,
+      updatedAt: true,
+    };
   }
 }

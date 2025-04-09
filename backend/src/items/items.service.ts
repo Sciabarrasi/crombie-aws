@@ -1,26 +1,80 @@
-import { Injectable } from '@nestjs/common';
-import { CreateItemDto } from './dto/create-item.dto';
-import { UpdateItemDto } from './dto/update-item.dto';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 @Injectable()
-export class ItemsService {
-  create(createItemDto: CreateItemDto) {
-    return 'This action adds a new item';
+export class ItemsService { 
+  constructor(private prisma: PrismaService) {}
+
+  async addToCart(userId: string, productId: number, quantity: number = 1) {
+    return this.prisma.$transaction(async (tx) => {
+      const product = await tx.product.findUnique({
+        where: { id: productId, deletedAt: null },
+      });
+      
+      if (!product) throw new NotFoundException('Producto no encontrado');
+      if (!product) throw new NotFoundException('Stock insuficiente');
+    
+      const existingItem = await tx.cartItem.findFirst({
+        where: { userId, productId },
+      });
+
+      if (existingItem) {
+        return tx.cartItem.update({
+          where: { id: existingItem.id },
+          data: { quantity: { increment: quantity } },
+        });
+      }
+
+      return tx.cartItem.create({
+        data: { userId, productId, quantity },
+        include: { product: true }
+      });
+    });
   }
 
-  findAll() {
-    return `This action returns all items`;
+  async getCart(userId: string) {
+    return this.prisma.cartItem.findMany({
+      where: { userId },
+      include: { product: true }
+    });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} item`;
+  async updateCartItem(itemId: number, quantity: number) {
+    if (quantity <= 0) {
+      return this.removeCartItem(itemId);
+    }
+
+    return this.prisma.cartItem.update({
+      where: { id: itemId },
+      data: { quantity },
+      include: { product: true }
+    });
   }
 
-  update(id: number, updateItemDto: UpdateItemDto) {
-    return `This action updates a #${id} item`;
+  async removeCartItem(itemId: number) {
+    return this.prisma.cartItem.delete({
+      where: { id: itemId }
+    });
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} item`;
+  //parte de la wishlist
+  async addToWishlist(userId: string, productId: number) {
+    return this.prisma.wishlistItem.create({
+      data: { userId, productId },
+      include: { product: true }
+    });
+  }
+
+  async getWishlist(userId: string) {
+    return this.prisma.wishlistItem.findMany({
+      where: { userId },
+      include: { product: true}
+    });
+  }
+
+  async removeFromWishlist(itemId: number) {
+    return this.prisma.wishlistItem.delete({
+      where: { id: itemId }
+    });
   }
 }
