@@ -1,47 +1,61 @@
-import {
-    Controller,
-    Get,
-    Post,
-    Body,
-    Patch,
-    Param,
-    Delete,
-    UsePipes,
-    ValidationPipe,
-  } from '@nestjs/common';
-  import { ItemsService } from './items.service';
-  import { CreateItemDto } from './dto/create-item.dto';
-  import { UpdateItemDto } from './dto/update-item.dto';
+import { Controller, Get, Post, Body, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import { ItemsService } from './items.service';
+import { JwtAuthGuard } from '../cognito-auth/cognito-auth.guard';
+import { RolesGuard } from '../custom-decorators/roles.guard';
+import { AcceptedRoles } from '../custom-decorators/roles.decorator';
+import { Roles } from '@prisma/client';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+
+@ApiTags('User Items')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, RolesGuard)
+@AcceptedRoles(Roles.USER, Roles.ADMIN)
+@Controller('items')
+export class ItemsController { 
+  constructor(private readonly itemsService: ItemsService) {}
   
-  @Controller('items')
-  export class ItemsController {
-    constructor(private readonly itemsService: ItemsService) {}
-  
-    @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
-    @Post()
-    create(@Body() createItemDto: CreateItemDto) {
-      console.log(createItemDto);
-  
-      return this.itemsService.create(createItemDto);
+  @Post('cart')
+  async addToCart(
+    @Request() req,
+    @Body() body: { productId: number, quantity?: number }
+  ) {
+    if (!req.user?.id) {
+      throw new Error('Usuario no autenticado correctamente');
     }
-  
-    @Get()
-    findAll() {
-      return this.itemsService.findAll();
-    }
-  
-    @Get(':id')
-    findOne(@Param('id') id: string) {
-      return this.itemsService.findOne(+id);
-    }
-  
-    @Patch(':id')
-    update(@Param('id') id: string, @Body() updateItemDto: UpdateItemDto) {
-      return this.itemsService.update(+id, updateItemDto);
-    }
-  
-    @Delete(':id')
-    remove(@Param('id') id: string) {
-      return this.itemsService.remove(+id);
-    }
+    return this.itemsService.addToCart(req.user.id, body.productId, body.quantity);
   }
+
+  @Get('cart')
+  async getCart(@Request() req) {
+    if (!req.user?.id) {
+      throw new Error('Usuario no autenticado correctamente');
+    }
+    return this.itemsService.getCart(req.user.id);
+  }
+
+  @Delete('cart/:id')
+  async removeFromCart(@Param('id') id: string) {
+    return this.itemsService.removeCartItem(+id);
+  }
+
+  @Post('wishlist')
+  async addToWishlist(@Request() req, @Body() body: { productId: number }) {
+    if (!req.user?.id) {
+      throw new Error('Usuario no autenticado correctamente');
+    }
+    return this.itemsService.addToWishlist(req.user.id, body.productId);
+  }
+
+  @Get('wishlist')
+  async getWishlist(@Request() req) {
+    if (!req.user?.id) {
+      throw new Error('Usuario no autenticado correctamente');
+    }
+    return this.itemsService.getWishlist(req.user.id);
+  }
+
+  @Delete('wishlist/:id')
+  async removeFromWishlist(@Param('id') id: string) {
+    return this.itemsService.removeFromWishlist(+id);
+  }
+}
