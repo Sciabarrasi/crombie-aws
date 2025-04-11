@@ -1,66 +1,95 @@
-// components/Navbar.tsx
-'use client';
+"use client"
+import { BaggageClaim, Heart, Menu, ShoppingCart, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import MenuList from "./menu-list";
+import ToggleTheme from "./toggle-theme";
+import { useCart } from "@/hooks/use-cart";
+import { useWishlist } from "@/hooks/use-wishlist";
+import { Button } from "./ui/button";
+import { useState } from "react";
+import MobileMenu from "./mobile-menu";
 
-import Link from 'next/link';
-import { ShoppingCart } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+const Navbar = () => {
+    const router = useRouter()
+    const cart = useCart()
+    const { wishlistItems } = useWishlist()
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
-export default function Navbar() {
-  const [cantidadTotal, setCantidadTotal] = useState(0);
-  const [animar, setAnimar] = useState(false);
+    return (
+        <>
+            <nav className="sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <div className="container flex items-center justify-between h-16">
+                    <div className="flex items-center gap-6">
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="sm:hidden"
+                            onClick={() => setIsMobileMenuOpen(true)}
+                        >
+                            <Menu className="h-5 w-5" />
+                        </Button>
+                        <h1 
+                            className="text-2xl font-bold cursor-pointer" 
+                            onClick={() => router.push("/")}
+                        >
+                            Crom<span className="text-primary">bie</span>
+                        </h1>
+                    </div>
 
-  const actualizarCantidad = () => {
-    const stored = JSON.parse(localStorage.getItem('carrito') || '[]');
-    const total = stored.reduce((sum: number, item: any) => sum + item.cantidad, 0);
-    setCantidadTotal(total);
-    if (total > 0) {
-      setAnimar(true);
-      setTimeout(() => setAnimar(false), 500);
-    }
-  };
+                    <div className="hidden sm:flex items-center gap-6">
+                        <MenuList />
+                    </div>
 
-  useEffect(() => {
-    actualizarCantidad();
+                    <div className="hidden sm:flex items-center gap-4">
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="relative"
+                            onClick={() => router.push("/wishlist")}
+                        >
+                            <Heart 
+                                className={`h-5 w-5 ${wishlistItems.length > 0 && 'fill-primary'}`}
+                            />
+                            {wishlistItems.length > 0 && (
+                                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                                    {wishlistItems.length}
+                                </span>
+                            )}
+                        </Button>
 
-    const handler = () => actualizarCantidad();
+                        <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="relative"
+                            onClick={() => router.push("/cart")}
+                        >
+                            {cart.items.length === 0 ? (
+                                <ShoppingCart className="h-5 w-5" />
+                            ) : (
+                                <>
+                                    <BaggageClaim className="h-5 w-5" />
+                                    <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground">
+                                        {cart.items.length}
+                                    </span>
+                                </>
+                            )}
+                        </Button>
 
-    window.addEventListener('actualizar-carrito', handler);
-    return () => window.removeEventListener('actualizar-carrito', handler);
-  }, []);
+                        <Button variant="ghost" size="icon" onClick={() => router.push("/account")}>
+                            <User className="h-5 w-5" />
+                        </Button>
 
-  return (
-    <nav className="bg-white border-b p-4 shadow-md sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto flex justify-between items-center">
-        <Link href="/">
-          <span className="text-xl font-bold">Crombie Store</span>
-        </Link>
+                        <ToggleTheme />
+                    </div>
+                </div>
+            </nav>
 
-        <Link href="/carrito" className="relative">
-          <motion.div
-            id="carrito-icon"
-            animate={animar ? { scale: [1, 1.4, 1] } : { scale: 1 }}
-            transition={{ duration: 0.4 }}
-            className="relative"
-          >
-            <ShoppingCart className="w-6 h-6" />
-            <AnimatePresence mode="wait">
-              {cantidadTotal > 0 && (
-                <motion.span
-                  key="badge"
-                  initial={{ opacity: 0, scale: 0.5 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center"
-                >
-                  {cantidadTotal}
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        </Link>
-      </div>
-    </nav>
-  );
+            <MobileMenu 
+                isOpen={isMobileMenuOpen} 
+                onClose={() => setIsMobileMenuOpen(false)} 
+            />
+        </>
+    );
 }
+
+export default Navbar;
