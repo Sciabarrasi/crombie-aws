@@ -1,11 +1,13 @@
-import { Module } from "@nestjs/common";
-import { PrismaModule } from "./prisma/prisma.module";
-import { ProductsModule } from "./products/products.module";
-import { ItemsModule } from "./items/items.module";
-import { UserModule } from "./user/user.module";
-import { ConfigModule } from "@nestjs/config";
-import { CognitoAuthModule } from "./cognito-auth/cognitoAuth.module";
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { ProductsModule } from './products/products.module';
+import { ItemsModule } from './items/items.module';
+import { UserModule } from './user/user.module';
+import { CognitoAuthModule } from './cognito-auth/cognitoAuth.module';
 
 @Module({
   imports: [
@@ -19,7 +21,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
     CognitoAuthModule,
     CloudinaryModule,
   ],
-  controllers: [],
-  providers: [],
+  controllers: [AppController],
+  providers: [AppService],
 })
 export class AppModule {}

@@ -60,4 +60,4 @@ export class CloudinaryService {
       throw new Error('Error al eliminar la imagen de Cloudinary');
     }
   }
-} 
+}
