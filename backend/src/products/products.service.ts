@@ -2,17 +2,28 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class ProductsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private cloudinaryService: CloudinaryService,
+  ) {}
 
-  async create(createProductDto: CreateProductDto) {
+  async create(createProductDto: CreateProductDto, file?: Express.Multer.File) {
+    let imageUrl = createProductDto.imageUrl;
+
+    if (file) {
+      imageUrl = await this.cloudinaryService.uploadImage(file);
+    }
+
     try {
       return await this.prisma.product.create({
         data: {
           ...createProductDto,
           stock: createProductDto.stock || 0,
+          imageUrl,
         },
         select: {
           id: true,
@@ -20,12 +31,19 @@ export class ProductsService {
           description: true,
           price: true,
           stock: true,
-          category: true,
+          imageUrl: true,
           createdAt: true,
         }
       });
     } catch (error) {
-      throw new BadRequestException('Error al crear el producto');
+      console.error('Error creating product:', error);
+      if (error.code === 'P2002') {
+        throw new BadRequestException('Ya existe un producto con ese nombre');
+      }
+      if (error.code === 'P2000') {
+        throw new BadRequestException('El valor proporcionado para algún campo es demasiado largo');
+      }
+      throw new BadRequestException(`Error al crear el producto: ${error.message}`);
     }
   }
 
@@ -46,7 +64,6 @@ export class ProductsService {
               id: true,
               name: true,
               price: true,
-              category: true,
               createdAt: true
             }
           })
@@ -66,18 +83,17 @@ export class ProductsService {
         name: true,
         description: true,
         price: true,
-        category: true,
         createdAt: true,
       }
     });
   }
 
-  async findOne(id: number) {
+  async findOne(id: string) {
     const product = await this.prisma.product.findUnique({
       where: { id, deletedAt: null },
       include: { 
         cartItems: false,
-        WishlistItem: false,
+        wishlistItems: false,
       }
     });
 
@@ -87,21 +103,41 @@ export class ProductsService {
     return product;
   }
 
-  async update(id: number, updateProductDto: UpdateProductDto) {
-    await this.findOne(id);
+  async update(id: string, updateProductDto: UpdateProductDto, file?: Express.Multer.File) {
+    const product = await this.findOne(id);
 
-    try {
-      return await this.prisma.product.update({
-        where: { id },
-        data: updateProductDto,
-      });
-    } catch (error) {
-      throw new BadRequestException('Error al actualizar el producto');
+    let imageUrl = updateProductDto.imageUrl;
+
+    if (file) {
+      // Si hay una imagen existente, la eliminamos de Cloudinary
+      if (product.imageUrl) {
+        const publicId = product.imageUrl.split('/').pop()?.split('.')[0];
+        if (publicId) {
+          await this.cloudinaryService.deleteImage(publicId);
+        }
+      }
+      imageUrl = await this.cloudinaryService.uploadImage(file);
     }
+
+    return this.prisma.product.update({
+      where: { id },
+      data: {
+        ...updateProductDto,
+        imageUrl,
+      },
+    });
   }
 
-  async remove(id: number) {
-    await this.findOne(id);
+  async remove(id: string) {
+    const product = await this.findOne(id);
+
+    // Si hay una imagen, la eliminamos de Cloudinary
+    if (product.imageUrl) {
+      const publicId = product.imageUrl.split('/').pop()?.split('.')[0];
+      if (publicId) {
+        await this.cloudinaryService.deleteImage(publicId);
+      }
+    }
 
     return this.prisma.product.update({
       where: { id },
@@ -110,7 +146,7 @@ export class ProductsService {
     });
   }
 
-  async updateStock(id: number, quantity: number) {
+  async updateStock(id: string, quantity: number) {
     if (quantity <= 0) {
       throw new BadRequestException('La cantidad debe ser mayor a 0');
     }
@@ -134,7 +170,7 @@ export class ProductsService {
     });
   }
 
-  async restore(id: number) {
+  async restore(id: string) {
     return this.prisma.product.update({
       where: { id },
       data: { deletedAt: null },

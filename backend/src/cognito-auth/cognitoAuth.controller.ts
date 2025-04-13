@@ -214,7 +214,7 @@ export class CognitoAuthController {
     try {
       const user = await this.prisma.user.update({
         where: { email: assignRoleDto.email },
-        data: { rol: assignRoleDto.role },
+        data: { role: assignRoleDto.role },
       });
 
       return {
@@ -250,11 +250,14 @@ export class CognitoAuthController {
     }
   })
   async checkEmail(@Param('email') email: string) {
-    const isAvailable = await this.authService.checkEmailAvailability(email);
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+
     return {
       statusCode: HttpStatus.OK,
-      available: isAvailable,
-      message: isAvailable ? 'El email está disponible' : 'El email ya está registrado'
+      available: !user,
+      message: user ? 'El email ya está registrado' : 'El email está disponible'
     };
   }
 }

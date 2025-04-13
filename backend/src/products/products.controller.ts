@@ -1,12 +1,15 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Req, UseInterceptors, UploadedFile, ParseFloatPipe, ParseIntPipe } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { JwtAuthGuard } from 'src/cognito-auth/cognito-auth.guard';
-import { RolesGuard } from 'src/custom-decorators/roles.guard';
-import { AcceptedRoles } from 'src/custom-decorators/roles.decorator';
+import { JwtAuthGuard } from '../cognito-auth/cognito-auth.guard';
+import { RolesGuard } from '../custom-decorators/roles.guard';
+import { AcceptedRoles } from '../custom-decorators/roles.decorator';
 import { Roles } from '@prisma/client';
-import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags, ApiConsumes } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 
 @ApiTags('Products')
 @Controller('products')
@@ -20,7 +23,7 @@ export class ProductsController {
     description: 'Endpoint accesible para cualquier usuario, sin necesidad de autenticación.'
   })
   @ApiResponse({ status: 200, description: 'Lista de productos retornada' })
-  findAll() {
+  async findAll() {
     return this.productsService.findAll();
   }
 
@@ -29,8 +32,8 @@ export class ProductsController {
   @ApiOperation({ summary: 'Obtener un producto por un ID (Público)' })
   @ApiResponse({ status: 200, description: 'Producto encontrado' })
   @ApiResponse({ status: 404, description: 'Producto no encontrado' })
-  findOne(@Param(':id') id: string) {
-    return this.productsService.findOne(+id);
+  async findOne(@Param('id') id: string) {
+    return this.productsService.findOne(id);
   }
 
   //método exlusivo de ADMIN
@@ -38,27 +41,55 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @AcceptedRoles(Roles.ADMIN)
   @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('image', {
+    storage: diskStorage({
+      destination: './uploads',
+      filename: (req, file, cb) => {
+        const randomName = Array(32).fill(null).map(() => (Math.round(Math.random() * 16)).toString(16)).join('');
+        return cb(null, `${randomName}${extname(file.originalname)}`);
+      },
+    }),
+  }))
   @ApiOperation({
     summary: 'Crear un producto (Admin)',
-    description: 'Requiere rol ADMIN.'
+    description: 'Requiere rol ADMIN. Permite subir una imagen del producto.'
   })
   @ApiResponse({ status: 201, description: 'Producto creado' })
   @ApiResponse({ status: 401, description: 'No autorizado' })
-  create(@Body() createProductDto: CreateProductDto) {
-    return this.productsService.create(createProductDto);
+  async create(
+    @Body('name') name: string,
+    @Body('description') description: string,
+    @Body('price', ParseFloatPipe) price: number,
+    @Body('stock', ParseIntPipe) stock: number,
+    @UploadedFile() image: Express.Multer.File,
+  ) {
+    const createProductDto: CreateProductDto = {
+      name,
+      description,
+      price,
+      stock,
+    };
+    return this.productsService.create(createProductDto, image);
   }
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @AcceptedRoles(Roles.ADMIN)
   @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(FileInterceptor('image'))
   @ApiOperation({
     summary: 'Actualizar un producto (Admin)',
-    description: 'Requiere rol ADMIN.' })
+    description: 'Requiere rol ADMIN. Permite actualizar la imagen del producto.' })
   @ApiResponse({ status: 200, description: 'Producto actualizado' })
   @ApiResponse({ status: 404, description: 'El producto no existe' })
-  update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-    return this.productsService.update(+id, updateProductDto);
+  async update(
+    @Param('id') id: string, 
+    @Body() updateProductDto: UpdateProductDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.productsService.update(id, updateProductDto, file);
   }
 
   @Delete(':id')
@@ -70,7 +101,7 @@ export class ProductsController {
     description: 'Soft delete. Requiere rol ADMIN.'
   })
   @ApiResponse({ status: 200, description: 'Producto marcado como eliminado' })
-  remove(@Param('id') id: string) {
-    return this.productsService.remove(+id);
+  async remove(@Param('id') id: string) {
+    return this.productsService.remove(id);
   }
 }

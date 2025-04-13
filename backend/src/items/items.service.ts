@@ -5,7 +5,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 export class ItemsService { 
   constructor(private prisma: PrismaService) {}
 
-  async addToCart(userId: string, productId: number, quantity: number = 1) {
+  async addToCart(userId: string, productId: string, quantity: number = 1) {
     return this.prisma.$transaction(async (tx) => {
       const product = await tx.product.findUnique({
         where: { id: productId, deletedAt: null },
@@ -39,7 +39,7 @@ export class ItemsService {
     });
   }
 
-  async updateCartItem(itemId: number, quantity: number) {
+  async updateCartItem(itemId: string, quantity: number) {
     if (quantity <= 0) {
       return this.removeCartItem(itemId);
     }
@@ -51,14 +51,14 @@ export class ItemsService {
     });
   }
 
-  async removeCartItem(itemId: number) {
+  async removeCartItem(itemId: string) {
     return this.prisma.cartItem.delete({
       where: { id: itemId }
     });
   }
 
   //parte de la wishlist
-  async addToWishlist(userId: string, productId: number) {
+  async addToWishlist(userId: string, productId: string) {
     return this.prisma.wishlistItem.create({
       data: { userId, productId },
       include: { product: true }
@@ -72,7 +72,7 @@ export class ItemsService {
     });
   }
 
-  async removeFromWishlist(itemId: number) {
+  async removeFromWishlist(itemId: string) {
     return this.prisma.wishlistItem.delete({
       where: { id: itemId }
     });

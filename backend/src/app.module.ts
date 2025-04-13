@@ -5,19 +5,19 @@ import { ItemsModule } from "./items/items.module";
 import { UserModule } from "./user/user.module";
 import { ConfigModule } from "@nestjs/config";
 import { CognitoAuthModule } from "./cognito-auth/cognitoAuth.module";
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
-      cache: true,
     }),
     PrismaModule,
     ProductsModule,
     ItemsModule,
     UserModule,
     CognitoAuthModule,
+    CloudinaryModule,
   ],
   controllers: [],
   providers: [],

@@ -54,9 +54,9 @@ export class CognitoAuthService {
       const prismaUser = await this.prisma.user.create({
         data: {
           email: registerDto.email,
-          userName: username,
+          username: username,
           password: 'managed-by-cognito',
-          rol: registerDto.role,
+          role: registerDto.role,
         },
       });
 
@@ -81,27 +81,52 @@ export class CognitoAuthService {
 
   async signIn(loginDto: LoginAuthDto): Promise<any> {
     try {
+      if (!loginDto.email) {
+        throw new BadRequestException('El email es requerido');
+      }
+
+      // Primero intentamos obtener el usuario de Cognito
+      try {
+        await this.getUser(loginDto.email);
+      } catch (error) {
+        if (error.name === 'UserNotFoundException') {
+          throw new UnauthorizedException('Usuario no encontrado');
+        }
+        throw error;
+      }
+
+      // Luego buscamos en nuestra base de datos
+      const user = await this.prisma.user.findUnique({
+        where: { email: loginDto.email },
+        select: { role: true, username: true },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('Usuario no encontrado en la base de datos local');
+      }
+
       const command = new InitiateAuthCommand({
         AuthFlow: 'USER_PASSWORD_AUTH',
         ClientId: this.clientId,
         AuthParameters: {
-          USERNAME: loginDto.email,
+          USERNAME: loginDto.email, // Usar email como username
           PASSWORD: loginDto.password,
         },
       });
       
       const response = await this.cognitoClient.send(command);
-      
-      const user = await this.prisma.user.findUnique({
-        where: { email: loginDto.email },
-        select: { rol: true },
-      });
 
       return {
         ...response.AuthenticationResult,
-        role: user?.rol || Roles.USER,
+        role: user.role || Roles.USER,
       };
     } catch (error) {
+      console.error('Error detallado en signIn:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
+
       if (error.name === 'NotAuthorizedException') {
         throw new UnauthorizedException('Credenciales inválidas');
       } 
@@ -111,15 +136,27 @@ export class CognitoAuthService {
       if (error.name === 'UserNotConfirmedException') {
         throw new UnauthorizedException('Usuario no confirmado');
       }
-      throw new InternalServerErrorException('Error en la autenticación');
+      if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Error en la autenticación: ' + error.message);
     }
   }
 
   async confirmSignUp(confirmDto: ConfirmAuthDto): Promise<any> {
     try {
+      const user = await this.prisma.user.findUnique({
+        where: { email: confirmDto.email },
+        select: { username: true },
+      });
+
+      if (!user) {
+        throw new BadRequestException('Usuario no encontrado');
+      }
+
       const command = new ConfirmSignUpCommand({
         ClientId: this.clientId,
-        Username: confirmDto.email,
+        Username: user.username,
         ConfirmationCode: confirmDto.pin,
       });
       

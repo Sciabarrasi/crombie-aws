@@ -5,8 +5,8 @@ import { Roles } from "@prisma/client";
 type SafeUser = {
   id: string;
   email: string;
-  userName: string;
-  rol: Roles;
+  username: string;
+  role: Roles;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -17,7 +17,7 @@ type UserWithPassword = SafeUser & { password: string };
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  async createUser(data: { email: string; userName: string; password: string }): Promise<SafeUser> {
+  async createUser(data: { email: string; username: string; password: string }): Promise<SafeUser> {
     return this.prisma.user.create({
       data,
       select: this.getSafeUserSelect(),
@@ -38,7 +38,7 @@ export class UserService {
     });
   }
 
-  async updateUser(id: string, data: { email?: string; userName?: string }): Promise<SafeUser> {
+  async updateUser(id: string, data: { email?: string; username?: string }): Promise<SafeUser> {
     await this.verifyUserExists(id);
     return this.prisma.user.update({
       where: { id },
@@ -66,8 +66,8 @@ export class UserService {
     return {
       id: true,
       email: true,
-      userName: true,
-      rol: true,
+      username: true,
+      role: true,
       createdAt: true,
       updatedAt: true,
     };

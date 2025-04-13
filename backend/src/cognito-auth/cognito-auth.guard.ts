@@ -1,11 +1,13 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { CognitoIdentityProviderClient, GetUserCommand, AdminGetUserCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { Roles } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   private cognitoClient: CognitoIdentityProviderClient;
 
-  constructor() {
+  constructor(private prisma: PrismaService) {
     this.cognitoClient = new CognitoIdentityProviderClient({
       region: process.env.AWS_REGION,
     });
@@ -20,51 +22,62 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
+      console.log('Token recibido:', token.substring(0, 20) + '...');
+      
       const response = await this.cognitoClient.send(
         new GetUserCommand({ AccessToken: token })
       );
+
+      console.log('Respuesta de GetUser:', JSON.stringify(response, null, 2));
 
       if (!response.Username) {
         throw new UnauthorizedException('No se pudo identificar al usuario');
       }
 
-      const roles = await this.getUserRoles(response.Username);
+      const email = response.UserAttributes?.find(attr => attr.Name === 'email')?.Value;
+      
+      if (!email) {
+        throw new UnauthorizedException('No se pudo obtener el email del usuario');
+      }
+
+      // Obtener el rol del usuario desde la base de datos
+      const dbUser = await this.prisma.user.findUnique({
+        where: { email },
+        select: { role: true }
+      });
+
+      if (!dbUser) {
+        throw new UnauthorizedException('Usuario no encontrado en la base de datos');
+      }
+
+      console.log('Usuario encontrado en DB:', {
+        email,
+        role: dbUser.role
+      });
 
       request.user = {
         id: response.Username,
-        email: response.UserAttributes?.find(attr => attr.Name === 'email')?.Value,
-        roles: roles
+        email: email,
+        role: dbUser.role // Usar el rol de la base de datos
       };
 
+      console.log('Request user:', JSON.stringify(request.user, null, 2));
       return true;
     } catch (error) {
-      console.error('Error de Cognito:', error);
+      console.error('Error detallado de Cognito:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
       throw new UnauthorizedException('Token inválido o expirado');
-    }
-  }
-
-  private async getUserRoles(username: string): Promise<string[]> {
-    try {
-      const response = await this.cognitoClient.send(
-        new AdminGetUserCommand({
-          UserPoolId: process.env.COGNITO_USER_POOL_ID,
-          Username: username
-        })
-      );
-
-      const roles = response.UserAttributes
-        ?.filter(attr => attr.Name === 'cognito:groups' || attr.Name === 'custom:roles')
-        .flatMap(attr => attr.Value?.split(',') || []);
-
-      return roles || [];
-    } catch (error) {
-      console.error('Error al obtener roles:', error);
-      return [];
     }
   }
 
   private extractToken(request: any): string | null {
     const authHeader = request.headers.authorization;
-    return authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+    console.log('Header de autorización:', authHeader);
+    console.log('Token extraído:', token ? token.substring(0, 20) + '...' : 'no token');
+    return token;
   }
 }

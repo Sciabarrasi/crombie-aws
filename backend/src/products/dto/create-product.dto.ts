@@ -40,20 +40,16 @@ export class CreateProductDto {
 
   @IsNumber()
   @IsPositive()
-  @IsOptional()
+  @IsNotEmpty()
   @ApiProperty({
     example: 100,
     description: 'Initial stock quantity (default: 0)',
     required: false
   })
-  stock?: number;
+  stock: number;
 
+  @ApiProperty({ description: 'URL de la imagen del producto', required: false })
   @IsString()
   @IsOptional()
-  @ApiProperty({
-    example: 'electronics',
-    description: 'Product category',
-    required: false
-  })
-  category?: string;
+  imageUrl?: string;
 }
