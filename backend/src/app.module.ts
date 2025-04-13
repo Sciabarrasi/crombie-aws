@@ -13,15 +13,13 @@ import { CognitoAuthModule } from './cognito-auth/cognitoAuth.module';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
-      cache: true,
     }),
-    CloudinaryModule,
     PrismaModule,
     ProductsModule,
     ItemsModule,
     UserModule,
     CognitoAuthModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

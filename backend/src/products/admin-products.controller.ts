@@ -3,28 +3,28 @@ import { Controller, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { JwtAuthGuard } from 'src/cognito-auth/cognito-auth.guard';
-import { RolesGuard } from 'src/custom-decorators/roles.guard';
-import { AcceptedRoles } from 'src/custom-decorators/roles.decorator';
+import { JwtAuthGuard } from '../cognito-auth/cognito-auth.guard';
+import { RolesGuard } from '../custom-decorators/roles.guard';
+import { AcceptedRoles } from '../custom-decorators/roles.decorator';
 import { Roles } from '@prisma/client';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Products - Admin Dashboard')
-@Controller('dashboard/products')
+@Controller('admin/products')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @AcceptedRoles(Roles.ADMIN)
 @ApiBearerAuth()
 export class AdminProductsController {
     constructor(private readonly productsService: ProductsService) {}
 
-    @Post('upload')
+    @Post('bulk')
     @ApiOperation({
         summary: '[ADMIN] Carga MASIVA de productos',
         description: 'Endpoint protegido para crear múltiples productos. Requiere rol ADMIN',
     })
     @ApiResponse({ status: 201, description: 'Productos creados correctamente' })
     @ApiResponse({ status: 401, description: 'No autorizado' })
-    bulkUpload(@Body() products: CreateProductDto[]) {
+    async bulkCreate(@Body() products: CreateProductDto[]) {
         return this.productsService.bulkCreate(products);
     }
 
@@ -39,14 +39,19 @@ export class AdminProductsController {
     @ApiOperation({ summary: '[ADMIN] Actualizar un producto' })
     @ApiResponse({ status: 200, description: 'Producto actualizado correctamente' })
     @ApiResponse({ status: 404, description: 'Producto no encontrado' })
-    update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
-        return this.productsService.update(+id, updateProductDto);
+    async update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
+        return this.productsService.update(id, updateProductDto);
     }
 
     @Delete(':id')
     @ApiOperation({ summary: '[ADMIN] Eliminar un producto (soft delete)' })
     @ApiResponse({ status: 200, description: 'Producto marcado como eliminado' })
-    remove(@Param('id') id: string) {
-        return this.productsService.remove(+id);
+    async remove(@Param('id') id: string) {
+        return this.productsService.remove(id);
+    }
+
+    @Post(':id/restore')
+    async restore(@Param('id') id: string) {
+        return this.productsService.restore(id);
     }
 }
