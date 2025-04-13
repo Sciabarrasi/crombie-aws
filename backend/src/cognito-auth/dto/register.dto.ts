@@ -1,5 +1,6 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { IsEmail, IsString, MinLength, Matches } from "class-validator";
+import { IsEmail, IsString, MinLength, Matches, IsEnum } from "class-validator";
+import { Roles } from "@prisma/client";
 
 export class RegisterAuthDto {
   @ApiProperty({
@@ -19,4 +20,14 @@ export class RegisterAuthDto {
     message: 'La contraseña debe contener al menos: 1 mayúscula, 1 número y 1 símbolo'
   })
   password: string;
+
+  @ApiProperty({
+    description: 'Rol del usuario',
+    example: 'USER',
+    enum: Roles,
+    required: false,
+    default: 'USER'
+  })
+  @IsEnum(Roles)
+  role?: Roles = Roles.USER;
 }

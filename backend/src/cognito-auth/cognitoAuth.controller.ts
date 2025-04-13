@@ -6,6 +6,8 @@ import {
   Get,
   Param,
   UseGuards,
+  BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { CognitoAuthService } from './cognitoAuth.service';
 import { LoginAuthDto } from './dto/login.dto';
@@ -18,17 +20,23 @@ import { RolesGuard } from '../custom-decorators/roles.guard';
 import { AcceptedRoles } from '../custom-decorators/roles.decorator';
 import { Roles } from '@prisma/client';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { PrismaService } from '../prisma/prisma.service';
+
+//fijarse por que en el panel de aws no sale status unconfirmed
 
 @ApiTags('Authentication')
 @Controller('cognito-auth')
 @ApiBearerAuth()
 export class CognitoAuthController {
-  constructor(private readonly authService: CognitoAuthService) {}
+  constructor(
+    private readonly authService: CognitoAuthService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   @Post('register')
   @ApiOperation({ 
     summary: 'Registrar nuevo usuario',
-    description: 'Crea una nueva cuenta de usuario con rol USER por defecto. Requiere confirmación por email'
+    description: 'Crea una nueva cuenta de usuario. El rol por defecto es USER si no se especifica otro'
   })
   @ApiResponse({ 
     status: HttpStatus.CREATED, 
@@ -203,15 +211,26 @@ export class CognitoAuthController {
     description: 'No autorizado (requiere rol ADMIN)' 
   })
   async assignRole(@Body() assignRoleDto: AssignRoleDto) {
-    const result = await this.authService.assignUserRole(assignRoleDto.email, assignRoleDto.role);
-    return {
-      statusCode: HttpStatus.OK,
-      message: result.message,
-      data: {
-        email: assignRoleDto.email,
-        role: assignRoleDto.role
+    try {
+      const user = await this.prisma.user.update({
+        where: { email: assignRoleDto.email },
+        data: { rol: assignRoleDto.role },
+      });
+
+      return {
+        statusCode: HttpStatus.OK,
+        message: `Rol ${assignRoleDto.role} asignado correctamente al usuario ${assignRoleDto.email}`,
+        data: {
+          email: assignRoleDto.email,
+          role: assignRoleDto.role
+        }
+      };
+    } catch (error) {
+      if (error.code === 'P2025') {
+        throw new BadRequestException('Usuario no encontrado');
       }
-    };
+      throw new InternalServerErrorException('Error al asignar el rol');
+    }
   }
 
   @Get('check-email/:email')
