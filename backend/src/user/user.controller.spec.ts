@@ -4,7 +4,6 @@ import { UserService } from './user.service';
 import { Roles } from '@prisma/client';
 import { JwtAuthGuard } from 'src/cognito-auth/cognito-auth.guard';
 import { RolesGuard } from 'src/custom-decorators/roles.guard';
-import { UnauthorizedException } from '@nestjs/common';
 
 describe('UserController', () => {
   let controller: UserController;
